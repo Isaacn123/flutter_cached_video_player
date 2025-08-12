@@ -30,7 +30,7 @@ import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
-import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.util.MimeTypes;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.view.TextureRegistry;
@@ -100,32 +100,32 @@ final class CachedVideoPlayer {
         setupVideoPlayer(eventChannel, textureEntry);
     }
 
-    private static boolean isHTTP(Uri uri) {
+    private boolean isHTTP(Uri uri) {
         if (uri == null || uri.getScheme() == null) {
             return false;
         }
         String scheme = uri.getScheme();
-        return scheme.equals("http") || scheme.equals("https");
+        return "https".equals(scheme) || "http".equals(scheme);
     }
 
     private MediaSource buildMediaSource(
             Uri uri, DataSource.Factory mediaDataSourceFactory, String formatHint, Context context) {
         int type;
         if (formatHint == null) {
-            type = Util.inferContentType(uri.getLastPathSegment());
+            type = inferContentType(uri.getLastPathSegment());
         } else {
             switch (formatHint) {
                 case FORMAT_SS:
-                    type = C.TYPE_SS;
+                    type = C.CONTENT_TYPE_SS;
                     break;
                 case FORMAT_DASH:
-                    type = C.TYPE_DASH;
+                    type = C.CONTENT_TYPE_DASH;
                     break;
                 case FORMAT_HLS:
-                    type = C.TYPE_HLS;
+                    type = C.CONTENT_TYPE_HLS;
                     break;
                 case FORMAT_OTHER:
-                    type = C.TYPE_OTHER;
+                    type = C.CONTENT_TYPE_OTHER;
                     break;
                 default:
                     type = -1;
@@ -133,25 +133,41 @@ final class CachedVideoPlayer {
             }
         }
         switch (type) {
-            case C.TYPE_SS:
+            case C.CONTENT_TYPE_SS:
                 return new SsMediaSource.Factory(
                         new DefaultSsChunkSource.Factory(mediaDataSourceFactory),
                         new DefaultDataSource.Factory(context, mediaDataSourceFactory))
                         .createMediaSource(MediaItem.fromUri(uri));
-            case C.TYPE_DASH:
+            case C.CONTENT_TYPE_DASH:
                 return new DashMediaSource.Factory(
                         new DefaultDashChunkSource.Factory(mediaDataSourceFactory),
                         new DefaultDataSource.Factory(context, mediaDataSourceFactory))
                         .createMediaSource(MediaItem.fromUri(uri));
-            case C.TYPE_HLS:
+            case C.CONTENT_TYPE_HLS:
                 return new HlsMediaSource.Factory(mediaDataSourceFactory)
                         .createMediaSource(MediaItem.fromUri(uri));
-            case C.TYPE_OTHER:
+            case C.CONTENT_TYPE_OTHER:
                 return new ProgressiveMediaSource.Factory(mediaDataSourceFactory)
                         .createMediaSource(MediaItem.fromUri(uri));
             default: {
                 throw new IllegalStateException("Unsupported type: " + type);
             }
+        }
+    }
+
+    private static int inferContentType(String fileName) {
+        if (fileName == null) {
+            return C.CONTENT_TYPE_OTHER;
+        }
+        String extension = fileName.toLowerCase();
+        if (extension.endsWith(".m3u8")) {
+            return C.CONTENT_TYPE_HLS;
+        } else if (extension.endsWith(".mpd")) {
+            return C.CONTENT_TYPE_DASH;
+        } else if (extension.endsWith(".ism") || extension.endsWith(".isml")) {
+            return C.CONTENT_TYPE_SS;
+        } else {
+            return C.CONTENT_TYPE_OTHER;
         }
     }
 
@@ -230,7 +246,7 @@ final class CachedVideoPlayer {
 
     private static void setAudioAttributes(ExoPlayer exoPlayer, boolean isMixMode) {
         exoPlayer.setAudioAttributes(
-                new AudioAttributes.Builder().setContentType(C.CONTENT_TYPE_MOVIE).build(), !isMixMode);
+                new AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), !isMixMode);
     }
 
     void play() {
